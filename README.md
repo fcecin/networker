@@ -16,7 +16,7 @@ sample use (general idea):
 
 2. to create an echo server (draft skeleton):
 
-public class MyEchoServer implements NetworkerListener {
+ public class MyEchoServer implements NetworkerListener {
 
      DumbNetworker n;
 
@@ -25,17 +25,17 @@ public class MyEchoServer implements NetworkerListener {
         n.send(sender, data);
      }
 
-};
+ };
 
 // somewhere in the MyEchoServer init or constructor:
 
-n = new DumbNetworker("dynamic.sneer.me", 65235, myEchoServer); // FIXME: default port, should not be required arg ...
-NetId myAddr = ... <--- you have to put a hardcoded 256-bit value here, it is the echo server overlay network address.
-n.setId(myAddr); // FIXME: the first ping will go with the wrong ID ... server unreachable for 10 minutes
+ n = new DumbNetworker("dynamic.sneer.me", 65235, myEchoServer); // FIXME: default port, should not be required arg ...
+ NetId myAddr = ... <--- you have to put a hardcoded 256-bit value here, it is the echo server overlay network address.
+ n.setId(myAddr); // FIXME: the first ping will go with the wrong ID ... server unreachable for 10 minutes
 
 3. the echo client:
 
-public class MyEchoClient implements NetworkerListener {
+ public class MyEchoClient implements NetworkerListener {
 
    receive(NetId sender, byte[] data) {
       if (sender == echo server address) {
@@ -49,11 +49,11 @@ public class MyEchoClient implements NetworkerListener {
    n.send(echoservernetid, str.to-byte-array-UTF8() or something);
 
 
-}
+ }
 
-// somewhere in the MyEchoClient init or constructor: (you don't have to set an ID)
+ // somewhere in the MyEchoClient init or constructor: (you don't have to set an ID)
 
-n = new DumbNetworker("dynamic.sneer.me", 65235, myEchoClient); // FIXME: default port, should not be required arg ...
+ n = new DumbNetworker("dynamic.sneer.me", 65235, myEchoClient); // FIXME: default port, should not be required arg ...
 
 
 
