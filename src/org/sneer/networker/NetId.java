@@ -34,8 +34,8 @@ public class NetId {
 	// A 256-bit overlay network ID. May be a random number OR an ECC public key of some sort.
 	public byte[] bytes = new byte[32];
 
-	// Constructor that assigns random bytes to the ID.
-	public NetId() {
+	// Assign a random value to this NetId
+	public void randomize() {
 		new SecureRandom().nextBytes(bytes);
 	}
 	

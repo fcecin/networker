@@ -13,6 +13,15 @@ import java.util.ArrayList;
  * If you call one of the "send" methods on a Networker, you don't really know which 
  *   NetworkerDevice will be selected to send it (well, if you just have one NetworkerDevice
  *   then you know, or if you retrieve the device you want and send through it, that works too).
+ *
+ * The idea is that you can implement an app that talks to something that
+ *   implements Networker, but you can "add more networks" (logical networks)
+ *   to the networker and the app (or apps) will have additional ways to find
+ *   its (named) peers transparently. 
+ *
+ * Let's see if that's a good idea... the DumbNetworker sample impl. doesn't
+ *   really stress the concept. When we try to do P2P we will see.
+ *
  */
 public interface Networker extends Sender {
 
