@@ -29,11 +29,6 @@ public class DumbNetworker implements Networker, NetworkerDeviceListener {
 	 * The setId/getId are essential because they allow you to create a 
 	 *   logical (overlay) server such as a chat server that always has the
 	 *   same address.
-	 * But since DumbNetworker is not cryptographic, anyone can steal/mimic
-	 *   the logical address (NetId) of that server! Which is worse than 
-	 *   having a single router for the whole overlay, but for testing and 
-	 *   for the sake of a sample implementation, our noncrypto nonrouting 
-	 *   DumbNetworker does its job...
 	 */
 	
 	public void setId(NetId newId) {
@@ -58,26 +53,6 @@ public class DumbNetworker implements Networker, NetworkerDeviceListener {
 		device.send(receiver, data);
 	}
 
-	@Override
-	public void sendSigned(NetId receiver, byte[] data) {
-		// Does nothing.
-	}
-
-	@Override
-	public void sendSignedEncrypted(NetId receiver, byte[] data) {
-		// Does nothing.
-	}
-
-	@Override
-	public boolean canSign() {
-		return false;
-	}
-
-	@Override
-	public boolean canEncrypt() {
-		return false;
-	}
-	
 	/*
 	 * NetworkerDeviceListener.
 	 *
@@ -93,25 +68,4 @@ public class DumbNetworker implements Networker, NetworkerDeviceListener {
 	public void receive(NetId sender, byte[] data) {
 		listener.receive(sender, data);
 	}
-
-	@Override
-	public void receiveSigned(NetId sender, byte[] data) {
-		// This doesn't happen in DumbNetworker.
-	}
-
-	@Override
-	public void receiveSignedEncrypted(NetId sender, byte[] data) {
-		// This doesn't happen in DumbNetworker.
-	}
-
-	@Override
-	public boolean canCheckSignatures() {
-		return false;
-	}
-
-	@Override
-	public boolean canDecrypt() {
-		return false;
-	}
-	
 }

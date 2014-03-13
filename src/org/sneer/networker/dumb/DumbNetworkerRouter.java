@@ -17,7 +17,7 @@ import org.sneer.networker.NetId;
  * 
  * There's no acks of any sort in the overlay protocol itself. Therefore, the 
  *   router requires the client devices to send packets to someone every now
- *   and then so that they remain in the router's routing table.
+ *   and then so that they remain in the routers' routing table.
  * 
  * The router should probably forget about peers after ... 30 minutes without 
  *   receiving anything from them. This probably means we want the devices 

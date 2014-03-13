@@ -97,26 +97,6 @@ public class DumbNetworkerDevice implements NetworkerDevice, Runnable {
 		}
 	}
 
-	@Override
-	public void sendSigned(NetId receiver, byte[] data) {
-		// Does nothing.
-	}
-
-	@Override
-	public void sendSignedEncrypted(NetId receiver, byte[] data) {
-		// Does nothing.
-	}
-
-	@Override
-	public boolean canSign() {
-		return false;
-	}
-
-	@Override
-	public boolean canEncrypt() {
-		return false;
-	}
-
 	/*
 	 * These are the internals. 
 	 * open() takes care of (trying to) open a socket and start a thread
