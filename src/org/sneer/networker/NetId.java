@@ -31,17 +31,30 @@ import java.util.Arrays;
  */
 public class NetId {
 
-	// A 256-bit overlay network ID. May be a random number OR an ECC public key of some sort.
-	public byte[] bytes = new byte[32];
-
-	// Assign a random value to this NetId
-	public void randomize() {
-		new SecureRandom().nextBytes(bytes);
+	// A 256-bit overlay network ID. May be a random number OR an ECC public 
+	//   key of some sort.
+	private byte[] bytes;
+	
+	// Call NetId.newRandomId() (static method) to get a new random NetId
+	public static NetId newRandomId() {
+		NetId netId = new NetId();
+		new SecureRandom().nextBytes(netId.bytes);
+		return netId;
 	}
 	
-	// You can use this to change the ID as well.	
+	// Default constructor returns a blank 256-bit netId
+	public NetId() {
+		bytes = new byte[32];
+	}
+	
+	// Copy constructor
+	public NetId(NetId source) {
+		bytes = Arrays.copyOf(source.bytes, source.bytes.length);
+	}
+
+	// Returns a copy (you can't use this to change the ID)
 	public byte[] getBytes() { 
-		return bytes; 
+		return bytes.clone();
 	}
 	
 	@Override

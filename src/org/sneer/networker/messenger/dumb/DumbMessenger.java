@@ -1,10 +1,19 @@
-package org.sneer.messenger.dumb;
+package org.sneer.networker.messenger.dumb;
 
+import org.sneer.networker.messenger.Messenger;
 import java.nio.ByteBuffer;
 import org.sneer.messenger.*;
 import org.sneer.networker.*;
+import org.sneer.networker.messenger.MessagingRequest;
+import org.sneer.networker.messenger.MessengerListener;
 
 /**
+ *  FIXME: this has to be redone (was a sketch)
+ *  now we have Networker.kill() and NetworkerListener.killed() to
+ *   help us implement this.
+ * 
+ * 
+ * 
  * An egregiously dumb implementation of the Messenger interface.
  */
 public class DumbMessenger implements Messenger, NetworkerListener {

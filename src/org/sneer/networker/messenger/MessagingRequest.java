@@ -1,4 +1,4 @@
-package org.sneer.messenger;
+package org.sneer.networker.messenger;
 
 import java.nio.ByteBuffer;
 import org.sneer.networker.NetId;
@@ -11,27 +11,33 @@ import org.sneer.networker.NetId;
  *   send has failed.
  */
 public class MessagingRequest {
+
+	// A Messenger assigns an 'unique' (within a 2^32 rotating range) sequence 
+	//   number to every outgoing message (same sequencer for all receivers).
+	// The sequence number is used by the receiver side to know how to ack 
+	//   what it is receiving.
+	// In the event you're sending or receiving more than 2^32 messages 
+	//   (not packets) within e.g. 10 minutes, this will stop working.
+	private static int seqGen;
+	protected final int seq;
 	
 	protected final NetId receiver;
 	protected final ByteBuffer message;
-	protected final MessagingRequestListener listener;
 	
 	protected boolean failed = false;
 	protected boolean completed = false;
 	
 	/**
 	 * Invoked by a Messenger to create an object that represents an
-	 *   attempt to upload a message to some other remote messenger.
+	 *   attempt to upload a NEW message to some other remote messenger.
+	 *   The new object will have a new sequence number.
 	 * @param receiver The thing that should receive what we want to send.
 	 * @param message The thing we're trying to get across.
-	 * @param listener The application object that wants to know whether this
-	 *   attempt succeeds or fails, for example, or how much of it we have sent
-	 *   so far, etc.
 	 */
-	public MessagingRequest(NetId receiver, ByteBuffer message, MessagingRequestListener listener) {
+	public MessagingRequest(NetId receiver, ByteBuffer message) {
+		this.seq = seqGen++;
 		this.receiver = receiver;
 		this.message = message;
-		this.listener = listener;
 	}
 
 	public NetId getReceiver() {
@@ -41,9 +47,13 @@ public class MessagingRequest {
 	public ByteBuffer getMessage() {
 		return message;
 	}
-
-	public MessagingRequestListener getListener() {
-		return listener;
+	
+	/**
+	 * Used by Messenger implementation. App shouldn't care about this.
+	 * @return The sequence number of this MessagingRequest.
+	 */
+	public int getSequence() {
+		return seq;
 	}
 	
 	/**

@@ -15,8 +15,7 @@ import org.sneer.networker.NetId;
  * The single command-line argument is the UDP port where it runs. If you 
  *   don't give a port it runs on 65235.
  * 
- * There's no acks of any sort in the overlay protocol itself. Therefore, the 
- *   router requires the client devices to send packets to someone every now
+ * The router requires the client devices to send packets to someone every now
  *   and then so that they remain in the routers' routing table.
  * 
  * The router should probably forget about peers after ... 30 minutes without 
@@ -24,13 +23,29 @@ import org.sneer.networker.NetId;
  *   'pinging' the router every 10 minutes so they remain reachable if the
  *   router can get at least one out of every three ping packets.
  * 
- * There's no ping message. To ping, the client device sends a packet to a 
- *   bogus (random) destination.
+ * There is a special "ping" message that Devices send to the Router: it is 
+ *   an empty message with the null (all-zeroes) NetId as receiver. What this
+ *   means is that the null NetId is not a valid routable receiver in this 
+ *   overlay, which is essentially a kind of built-in bug (dirt in the address
+ *   namespace). That ping message receives a ping response, which is a message
+ *   sent with the sender set to the all-zeroes NetId back to the device. 
+ * 
+ * The device should keep pinging this router insistently until one such ping 
+ *   ack is received back, so it knows the router has seen it and will route 
+ *   things to it from now on.
  * 
  */
 public class DumbNetworkerRouter {
 	
+	// Default UDP port for the router
 	public static final int DEFAULT_UDP_PORT = 65235;
+	
+	// When a Device sends to this address, it means a ping to the router,
+	//   not an actual packet to be routed. 
+	// When a Device receives from this address, it means the router is 
+	//   acknowledging a ping, not a packet being routed from another 
+	//   Device.
+	private static final NetId pingNetId = new NetId();
 	
 	public static void main(String[] args) throws Exception {
 		int port = DEFAULT_UDP_PORT;
@@ -72,6 +87,7 @@ public class DumbNetworkerRouter {
 		//  forget about peers after the unblocking occurs.
 		
 		ByteBuffer in = ByteBuffer.allocate(65536);
+		ByteBuffer pingOut = ByteBuffer.allocate(64);
 		
 		routingTable[0] = new HashMap();
 		routingTable[1] = new HashMap();
@@ -100,14 +116,36 @@ public class DumbNetworkerRouter {
 					in.get(sender.getBytes());
 					in.get(receiver.getBytes());
 					in.rewind();
-					// look it up first in the primary, since if there's
-					//   an entry on both then the secondary may be out of date.
-					SocketAddress receiverAddress = routingTable[prim].get(receiver);
-					if (receiverAddress == null)
-						receiverAddress = routingTable[sec].get(receiver);
-					// if we found an address, route to it
-					if (receiverAddress != null)
-						channel.send(in, receiverAddress);
+					
+					// special case: if the receiver is all zeroes, this is 
+					//   a network control packet: the device is pinging the
+					//   central router, and we ping back sending another
+					//   packet with the sender being all zeroes.
+					if (receiver.equals(pingNetId)) {
+						
+						// Device pinging the Router.
+						
+						// ping back and that's it.
+						pingOut.clear();
+						pingOut.put(pingNetId.getBytes()); // sender = "Pong!"
+						pingOut.put(sender.getBytes()); // receiver = the Device that pinged us
+						pingOut.flip();
+						channel.send(pingOut, senderAddress);
+						
+					} else {
+						
+						// actual Device-to-Device packet that we have to
+						//  route for them.
+					
+						// look it up first in the primary, since if there's
+						//   an entry on both then the secondary may be out of date.
+						SocketAddress receiverAddress = routingTable[prim].get(receiver);
+						if (receiverAddress == null)
+							receiverAddress = routingTable[sec].get(receiver);
+						// if we found an address, route to it
+						if (receiverAddress != null)
+							channel.send(in, receiverAddress);
+					}
 				}
 			}
 			

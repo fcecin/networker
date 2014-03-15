@@ -6,28 +6,38 @@ import java.nio.*;
 import java.nio.channels.*;
 import java.net.*;
 
-public class DumbNetworkerDevice implements NetworkerDevice, Runnable {
-
-	NetId netId = new NetId();
+public class DumbNetworkerDevice implements Device, Runnable {
 	
-	NetworkerDeviceListener listener; // this will be the DumbNetworker
+	// all zeroes "Router ping/pong" NetId
+	private static final NetId pingNetId = new NetId();
+	
+	// Networker and DeviceListener
+	DumbNetworker networker; 
+	
 	DatagramChannel channel;
 	InetSocketAddress serverSocketAddr;
 	
 	Thread networkThread;
 	
 	ByteBuffer sendbuf = ByteBuffer.allocate(65536);
+	
+	volatile boolean connectedGuess;
 		
-	public DumbNetworkerDevice(NetworkerDeviceListener listener) {
-		this.listener = listener;
-		
-		// dumb peer gets a new overlay ID every time unless you set it 
-		//   to some value explicitly (e.g. if you're doing a server).
-		netId.randomize(); 
+	public DumbNetworkerDevice(DumbNetworker networker) {
+		this.networker = networker;
+	}
+
+	public Networker getNetworker() {
+		return networker;
+	}
+
+	public DeviceListener getListener() {
+		return networker;
 	}
 	
 	/*
-	 * This is the main API of the device (how you use it).
+	 * This is the main API of this "dumb" device (how you can us it).
+	 * This is NOT on the Device interface. This is implementation-specific.
 	 * This device implements a "fake" (non-P2P) overlay network. It needs
 	 *  a central "router" which by being a single dude can trivially
 	 *  route between any two devices that "connect" to it.
@@ -36,15 +46,47 @@ public class DumbNetworkerDevice implements NetworkerDevice, Runnable {
 	 *  to a central "router" UDP process (DumbNetworkerRouter).
 	 */
 	
+	/**
+	 * Activate this DumbNetworkerDevice, making it start trying to work 
+	 *   with the given central router.
+	 * @param serverAddr IP address where the central router is supposed to be.
+	 * @param serverPort UDP port where the central router is supposed to be.
+	 * @return true if we succeeded in activating the device (start threads,
+	 *   open sockets, etc.) or false if some lame local error occurred.
+	 */
 	public boolean connect(String serverAddr, int serverPort) {
 		serverSocketAddr = InetSocketAddress.createUnresolved(serverAddr, serverPort);
-		return isConnected();
+		connectedGuess = false;
+		return isActive();
 	}
 	
-	public boolean isConnected() {
+	/**
+	 * Check whether this Device is active.
+	 * @return true if connect() has been called and if either we succeeded in
+	 *   starting threads, opening sockets etc. when connect() was called or if
+	 *   we succeeded in doing so just now. false if some lame local error is 
+	 *   preventing us from starting threads and/or opening sockets.
+	 */
+	public boolean isActive() {
 		return open();
 	}
 	
+	/**
+	 * Guesses whether there's an active DumbNetworkerRouter at the
+	 *   address we supplied in a previous connect() call or not.
+	 * @return true if isActive() and heard from the router recently, false
+	 *   if not active or if router hasn't been heard from in a while.
+	 */
+	public boolean isConnected() {
+		if (! open())
+			return false;
+		return connectedGuess;
+	}
+	
+	/**
+	 * Deactivates this Device. This closes the socket and stops the thread
+	 *   if we haven't done so already.
+	 */
 	public void disconnect() {
 		if (channel != null) {
 			try {
@@ -59,6 +101,9 @@ public class DumbNetworkerDevice implements NetworkerDevice, Runnable {
 			}
 			networkThread = null;
 			channel = null;
+			
+			// Redundant/not needed because isOpen()==false now.
+			connectedGuess = false; 
 		}
 	}
 	
@@ -67,22 +112,12 @@ public class DumbNetworkerDevice implements NetworkerDevice, Runnable {
 	 */
 	
 	@Override
-	public NetId getId() {
-		return netId;
-	}
-
-	@Override
-	public void setId(NetId newId) {
-		netId = newId;
-	}
-
-	@Override
 	public void send(NetId receiver, byte[] data) {
 		if (open()) {
 
 			sendbuf.clear();
 			// Header: 64 bytes
-			sendbuf.put(netId.getBytes()); // Sender 256-bit ID
+			sendbuf.put(networker.getId().getBytes()); // Sender 256-bit ID
 			sendbuf.put(receiver.getBytes()); // Receiver 256-bit ID
 			// Body -- make sure sendbuf doesn't overflow
 			int amount = Math.min(data.length, sendbuf.remaining());
@@ -125,10 +160,19 @@ public class DumbNetworkerDevice implements NetworkerDevice, Runnable {
 		// datagrampacket sucks ass, so we'll bow down to using selectors
 		//   instead of going to the datagramsocket setsotimeout.
 		
-		long lastPingTime = 0;
-		ByteBuffer pingbuf = ByteBuffer.allocate(64);
-		NetId dummyNetId = new NetId();
+		// how ping-ponging with the router works:
+		// we send a ping when nextPingTime expires. at first connecting/starting
+		//   the thread, that means immediately.
+		// from there we continue to ping every N seconds, where N is 4, 8, 16,
+		//   32, 64 ... seconds, until we get a pong back from the server.
+		// when we get any packet back from the router, including pongs, we 
+		//   leave the router alone for 10 minutes.
+		// after 10 minutes we start bothering it again.
 		
+		long nextPingTime = 0;
+		int pingTimeDelta = 4; // starts at +4s and doubles after every ping
+		ByteBuffer pingbuf = ByteBuffer.allocate(64);
+						
 		Selector selector;
 		try {
 			selector = Selector.open();
@@ -166,10 +210,32 @@ public class DumbNetworkerDevice implements NetworkerDevice, Runnable {
 						
 						// make sure we're the intended recipient, otherwise
 						//  ignore it.
-						if (netId.equals(receiver)) {
-							byte[] data = new byte[rcvbuf.remaining()];
-							rcvbuf.get(data);
-							listener.receive(sender, data);
+						if (networker.getId().equals(receiver)) {
+							
+							// if the sender is the all-zeroes NetId, this
+							//   means it is a "pong" from the server. we 
+							//   don't forward that to the app.
+							// yes, this is ugly: we have polluted the 
+							//   address space with a "special address" that
+							//   can't be used by apps.
+							if (! sender.equals(pingNetId)) {
+							
+								// actual valid sender, so forward it.
+								byte[] data = new byte[rcvbuf.remaining()];
+								rcvbuf.get(data);
+								networker.receive(sender, data);
+							}
+							
+							// reset the pinger to +10 minutes in any case
+							//  (pongs or successfully routed messages, they 
+							//   are the same thing as far as knowing the 
+							//   router has got our address right -- both 
+							//   push the pinging to 10min in the future).
+							nextPingTime = System.currentTimeMillis() + 10 * 60 * 1000;
+							pingTimeDelta = 4; // reset to 4 second interval between pings
+							
+							// we got something so we are being seen
+							connectedGuess = true;
 						}
 					}
 				}
@@ -182,11 +248,30 @@ public class DumbNetworkerDevice implements NetworkerDevice, Runnable {
 			
 			// Check if it is time to ping the central router -- every 10 mins
 			long now = System.currentTimeMillis();
-			if (now > lastPingTime + 10 * 60 * 1000) {
-				lastPingTime = now;
+			if (now > nextPingTime) {
+				
+				// If we're having to ping, it means we might have been
+				//   forgotten. But let's not be hasty: let's wait for a few
+				//   pings to go unanswered.
+				// The easiest way to accomplish this is to take our 4,8,16,32
+				//   64,128,256,512,600,600,600... series and plug into it at
+				//   some point. Say the 32 point... which will give us three
+				//   unanswered packets within 28 seconds to consider the
+				//   router gone.
+				if (pingTimeDelta >= 32)
+					connectedGuess = false;
+				
+				// Ping a lot at the start but increase interval as we continue 
+				//   to ping without getting a response.
+				nextPingTime = now + pingTimeDelta * 1000;
+				pingTimeDelta *= 2;
+				if (pingTimeDelta > 600) // cap to 10 minutes maximum ping interval
+					pingTimeDelta = 600;
+				
+				// Send the ping
 				pingbuf.clear();
-				pingbuf.put(netId.getBytes());
-				pingbuf.put(dummyNetId.getBytes()); // all zeroes / doesn't matter
+				pingbuf.put(networker.getId().getBytes());
+				pingbuf.put(pingNetId.getBytes()); // all zeroes
 				pingbuf.flip();
 				try {
 					channel.send(pingbuf, serverSocketAddr);

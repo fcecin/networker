@@ -1,4 +1,4 @@
-package org.sneer.messenger;
+package org.sneer.networker.messenger;
 
 import java.nio.ByteBuffer;
 import org.sneer.networker.NetId;
@@ -11,6 +11,11 @@ import org.sneer.networker.NetId;
  * The message must fit in RAM as you give the whole thing as a buffer for 
  *   the messenger to deliver.
  * 
+ * NOTE: There will be another "Messenger" which will be implemented on top
+ *   of MINX (the extensible protocol). MINX will be implemented on top of 
+ *   a Networker as well. This "Messenger" was developed to help test the 
+ *   Networker; we actually want everyone to use MINX in the future.
+ * 
  */
 public interface Messenger {
 	
@@ -21,8 +26,6 @@ public interface Messenger {
 	 * @return An object that represents this individual attempt at getting
 	 *   something delivered. If this delivery fails, you're going to see 
 	 *   the exact same object appear in MessengerListener.sendFailed().
-	 *   The request also allows you to check acknowledgements (what was 
-	 *   confirmed delivered already), adjust the priority, etc.
 	 */
 	public MessagingRequest send(NetId receiver, ByteBuffer message);
 	
