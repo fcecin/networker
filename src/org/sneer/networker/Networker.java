@@ -5,6 +5,8 @@ import java.util.ArrayList;
 /*
  * The Networker interface is implemented by classes that know how to try to 
  *   send datagrams to another Networker.
+ *
+ * NOTE: All these methods should be implemented as THREAD-SAFE!
  *   
  * A Networker has one NetId which is the application container or device 
  *   logical address. It is a way to reach an endpoint. It is analogous to
@@ -25,6 +27,24 @@ public interface Networker {
 	 *   NetId that the caller can freely screw with to no effect.
 	 */
 	public NetId getId();
+	
+	/**
+	 * Set the networker's listener.
+	 * You will find out that you do not necessarily want to force the user
+	 *   of your Networker implementation to set the listener on construction
+	 *   and never ever change it.
+	 * So it might be possible for the listener to be null while the networker
+	 *   runs, for a little bit.
+	 * Which means you probably don't want to connect and/or advertise the 
+	 *   networker between construction of the Networker object and the listener
+	 *   being set.
+	 * Which means you might want to connect() or start() or open() or whatever
+	 *   your Networker implementation whenever the listener is finally set 
+	 *   when this is called. Or perhaps you want the user to call a connect()
+	 *   of some sort manually. That's fine too.
+	 * @param listener What to set the listener to.
+	 */
+	public void setListener(NetworkerListener listener);
 
 	/**
 	 * Get the networker listener.
@@ -59,6 +79,9 @@ public interface Networker {
 	
 	/**
 	 * Check if kill() has been already invoked.
+	 * !! IMPORTANT !! Implementation should be marked "synchronized" so 
+	 *   multiple threads (e.g. application, network thread...) can poll this
+	 *   concurrently.
 	 * @return true if this Networker is dead.
 	 */
 	public boolean isDead();

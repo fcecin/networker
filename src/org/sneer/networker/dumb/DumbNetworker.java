@@ -24,65 +24,71 @@ public class DumbNetworker implements Networker, DeviceListener {
 	DumbNetworkerDevice device;
 	ArrayList<Device> devices = new ArrayList(1);
 	
-	String dumbRouterAddr;
-	int dumbRouterPort;
-	
-	/*
-	 * Each DON (Dumb Overlay Network) instance has a single UDP/IP router 
-	 *   process somewhere, e.g. "dynamic.sneer.me" addr and "65235" port.
-	 */
-
-	public DumbNetworker(NetworkerListener listener, NetId netId, String dumbRouterAddr) {
-		this(listener, netId, dumbRouterAddr, DEFAULT_PORT);
-	}
-	
-	public DumbNetworker(NetworkerListener listener, NetId netId, String dumbRouterAddr, int dumbRouterPort) {
+	// You still probably want to call setListener() and then bind()
+	//   once after construction.
+	public DumbNetworker(NetId netId) {
 		this.netId = netId;
-		this.dumbRouterAddr = dumbRouterAddr;
-		this.dumbRouterPort = dumbRouterPort;
-		this.listener = listener;
-		
+
 		device = new DumbNetworkerDevice(this);
-		device.connect(dumbRouterAddr, dumbRouterPort);
-		
 		devices.add(device);
 	}
 	
+	// Bind to a router. You usually will call this only once for any given
+	//   DumbNetworker, but for good measure we'll handle multiple calls too.
+	public synchronized void bind(String dumbRouterAddr, int dumbRouterPort) {
+		
+		// Our DumbNetworkerDevice is not that dumb: it already knows how to
+		//  handle multiple subsequent connect()s with different router 
+		//  addresses on each call.
+		device.connect(dumbRouterAddr, dumbRouterPort);
+	}
+	
+	// Use the default port
+	public synchronized void bind(String dumbRouterAddr) {
+		bind(dumbRouterAddr, DEFAULT_PORT);
+	}
+
 	/*
 	 * Networker
 	 */
 	
-	public NetId getId() {
+	public synchronized NetId getId() {
 		return new NetId(netId);
 	}
 
-	public void send(NetId receiver, byte[] data) {
+	public synchronized void send(NetId receiver, byte[] data) {
 		if (! dead)
 			device.send(receiver, data);
 	}
 	
-	public NetworkerListener getListener() {
+	public synchronized NetworkerListener getListener() {
 		return listener;
 	}
 	
-	public ArrayList<Device> getDevices() {
+	public synchronized void setListener(NetworkerListener listener) {
+		this.listener = listener;
+	}
+	
+	public synchronized ArrayList<Device> getDevices() {
 		return devices;
 	}
 
-	public void kill() {
+	public synchronized void kill() {
 		if (! dead) {
-			dead = true;
+			dead = true; // note that this should totally happen ...
 			
 			device.disconnect();
 			device = null;
-
 			devices.clear();
 			
-			listener.killed();
+			if (listener != null)
+				listener.killed(); // ... before this, so isDead() is already true
+					               // and so killed() can join e.g. a network
+						           // thread that is polling isDead() by itself.
 		}
 	}
 
-	public boolean isDead() {
+	public synchronized boolean isDead() {
 		return dead;
 	}
 	
@@ -90,8 +96,8 @@ public class DumbNetworker implements Networker, DeviceListener {
 	 * DeviceListener.
 	 */
 
-	public void receive(NetId sender, byte[] data) {
-		if (! dead)
+	public synchronized void receive(NetId sender, byte[] data) {
+		if (! dead && listener != null)
 			listener.receive(sender, data);
 	}
 }

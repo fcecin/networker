@@ -6,7 +6,7 @@ import java.nio.*;
 import java.nio.channels.*;
 import java.net.*;
 
-public class DumbNetworkerDevice implements Device, Runnable {
+class DumbNetworkerDevice implements Device, Runnable {
 	
 	// all zeroes "Router ping/pong" NetId
 	private static final NetId pingNetId = new NetId();
@@ -55,6 +55,10 @@ public class DumbNetworkerDevice implements Device, Runnable {
 	 *   open sockets, etc.) or false if some lame local error occurred.
 	 */
 	public boolean connect(String serverAddr, int serverPort) {
+		disconnect(); // Easiest way to implement reconnecting/rebinding the 
+		              //   DatagramChannel is to just nuke the existing one and 
+		              //   make a new one. We could reconnect it and avoid 
+		              //   shooting it and the network thread, but meh.
 		serverSocketAddr = InetSocketAddress.createUnresolved(serverAddr, serverPort);
 		connectedGuess = false;
 		return isActive();
